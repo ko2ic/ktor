@@ -4,6 +4,7 @@
 
 import io.ktor.client.features.websocket.*
 import io.ktor.http.cio.websocket.*
+import io.ktor.util.*
 import kotlinx.coroutines.channels.*
 import kotlin.coroutines.*
 import kotlin.test.*
@@ -12,12 +13,15 @@ class WebSocketTest {
 
     @Test
     fun testAsDefault() {
-        val feature = WebSockets(42, 16)
+        val feature = WebSockets(42, 16, emptyList())
         val session = object : WebSocketSession {
             override var masking: Boolean = false
             override var maxFrameSize: Long = 0
             override val incoming: ReceiveChannel<Frame> = Channel()
             override val outgoing: SendChannel<Frame> = Channel()
+
+            override val extensions: List<WebSocketExtension<*>>
+                get() = TODO("Not yet implemented")
 
             override suspend fun send(frame: Frame) {
                 TODO("Not yet implemented")
@@ -34,9 +38,7 @@ class WebSocketTest {
             override val coroutineContext: CoroutineContext = EmptyCoroutineContext
         }
 
-        with(feature) {
-            val defaultSession = session.asDefault()
-            assertEquals(16, defaultSession.maxFrameSize)
-        }
+        val defaultSession = feature.convertSessionToDefault(session)
+        assertEquals(16, defaultSession.maxFrameSize)
     }
 }

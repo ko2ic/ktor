@@ -15,6 +15,15 @@ public class FrameParser {
     public var fin: Boolean = false
         private set
 
+    public var rcv1: Boolean = false
+        private set
+
+    public var rcv2: Boolean = false
+        private set
+
+    public var rcv3: Boolean = false
+        private set
+
     public var mask: Boolean = false
         private set
 
@@ -72,6 +81,10 @@ public class FrameParser {
             val maskAndLength1 = bb.get().toInt()
 
             fin = flagsAndOpcode and 0x80 != 0
+            rcv1 = flagsAndOpcode and 0x40 != 0
+            rcv2 = flagsAndOpcode and 0x20 != 0
+            rcv3 = flagsAndOpcode and 0x10 != 0
+
             opcode = (flagsAndOpcode and 0x0f).let { new -> if (new == 0) lastOpcode else new }
             if (!frameType.controlFrame) {
                 lastOpcode = opcode

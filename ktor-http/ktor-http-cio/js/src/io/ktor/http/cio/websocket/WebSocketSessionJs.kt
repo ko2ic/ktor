@@ -22,6 +22,11 @@ public actual interface WebSocketSession : CoroutineScope {
     public actual val outgoing: SendChannel<Frame>
 
     /**
+     * Negotiated WebSocket extensions.
+     */
+    public actual val extensions: List<WebSocketExtension<*>>
+
+    /**
      * Enqueue frame, may suspend if outgoing queue is full. May throw an exception if outgoing channel is already
      * closed so it is impossible to transfer any message. Frames that were sent after close frame could be silently
      * ignored. Please note that close frame could be sent automatically in reply to a peer close frame unless it is

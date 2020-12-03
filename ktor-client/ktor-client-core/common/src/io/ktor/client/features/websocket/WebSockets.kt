@@ -5,12 +5,22 @@
 package io.ktor.client.features.websocket
 
 import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.engine.*
 import io.ktor.client.features.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.http.cio.websocket.*
 import io.ktor.util.*
+import kotlin.native.concurrent.*
+
+@SharedImmutable
+private val REQUEST_EXTENSIONS_KEY = AttributeKey<List<WebSocketExtension<*>>>("Websocket extensions")
+
+public object WebSocketCapability : HttpClientEngineCapability<Unit>
+
+public object WebSocketExtensionsCapability : HttpClientEngineCapability<Unit>
 
 /**
  * Client WebSocket feature.
@@ -19,15 +29,56 @@ import io.ktor.util.*
  * @property maxFrameSize - max size of single websocket frame.
  */
 @OptIn(WebSocketInternalAPI::class)
-public class WebSockets(
-    public val pingInterval: Long = -1L,
-    public val maxFrameSize: Long = Int.MAX_VALUE.toLong()
+public class WebSockets internal constructor(
+    public val pingInterval: Long,
+    public val maxFrameSize: Long,
+    private val extensions: List<ExtensionInstaller>
 ) {
+    public constructor(
+        pingInterval: Long = -1L,
+        maxFrameSize: Long = Int.MAX_VALUE.toLong(),
+    ) : this(pingInterval, maxFrameSize, emptyList())
+
+    private fun installExtensions(context: HttpRequestBuilder) {
+        val installed = extensions.map { it() }
+        context.attributes.put(REQUEST_EXTENSIONS_KEY, installed)
+
+        val protocols = installed.flatMap { it.protocols }
+        addNegotiatedProtocols(context, protocols)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun completeNegotiation(
+        call: HttpClientCall
+    ): List<WebSocketExtension<*>> {
+        val serverExtensions: List<WebSocketExtensionProtocol> = call.response
+            .headers[HttpHeaders.SecWebSocketExtensions]
+            ?.let { parseWebSocketExtensions(it) } ?: emptyList()
+
+        val clientExtensions = call.attributes[REQUEST_EXTENSIONS_KEY]
+
+        return clientExtensions.filter { it.clientNegotiation(serverExtensions) }
+    }
+
+    private fun addNegotiatedProtocols(context: HttpRequestBuilder, protocols: List<WebSocketExtensionProtocol>) {
+        val headerValue = protocols.joinToString(";")
+        context.header(HttpHeaders.SecWebSocketExtensions, headerValue)
+    }
+
+    internal fun convertSessionToDefault(session: WebSocketSession): DefaultWebSocketSession {
+        if (session is DefaultWebSocketSession) return session
+
+        return DefaultWebSocketSession(session, pingInterval, timeoutMillis = pingInterval * 2).also {
+            it.maxFrameSize = this@WebSockets.maxFrameSize
+        }
+    }
 
     /**
      * [WebSockets] configuration.
      */
     public class Config {
+        internal val extensionsConfig: ExtensionsConfig = ExtensionsConfig()
+
         /**
          * Sets interval of sending ping frames.
          *
@@ -39,6 +90,10 @@ public class WebSockets(
          * Sets maximum frame size in bytes.
          */
         public var maxFrameSize: Long = Int.MAX_VALUE.toLong()
+
+        public fun extensions(block: ExtensionsConfig.() -> Unit) {
+            extensionsConfig.apply(block)
+        }
     }
 
     /**
@@ -49,38 +104,45 @@ public class WebSockets(
 
         override fun prepare(block: Config.() -> Unit): WebSockets {
             val config = Config().apply(block)
-            return WebSockets(config.pingInterval, config.maxFrameSize)
+            return WebSockets(config.pingInterval, config.maxFrameSize, config.extensionsConfig.installers)
         }
 
         override fun install(feature: WebSockets, scope: HttpClient) {
+            val extensionsSupported = scope.engine.supportedCapabilities.contains(WebSocketExtensionsCapability)
+
             scope.requestPipeline.intercept(HttpRequestPipeline.Render) {
                 if (!context.url.protocol.isWebsocket()) return@intercept
+                context.setCapability(WebSocketCapability, Unit)
+
+                if (extensionsSupported) {
+                    feature.installExtensions(context)
+                }
 
                 proceedWith(WebSocketContent())
             }
 
             scope.responsePipeline.intercept(HttpResponsePipeline.Transform) { (info, session) ->
                 if (session !is WebSocketSession) return@intercept
-                if (info.type == DefaultClientWebSocketSession::class) {
-                    val clientSession: DefaultClientWebSocketSession = with(feature) {
-                        DefaultClientWebSocketSession(context, session.asDefault())
-                    }
 
-                    proceedWith(HttpResponseContainer(info, clientSession))
-                    return@intercept
+                val clientSession: ClientWebSocketSession = when (info.type) {
+                    DefaultClientWebSocketSession::class -> {
+                        val defaultSession = feature.convertSessionToDefault(session)
+                        val clientSession = DefaultClientWebSocketSession(context, defaultSession)
+
+                        val negotiated = if (extensionsSupported) {
+                            feature.completeNegotiation(context)
+                        } else emptyList()
+
+                        clientSession.apply {
+                            start(negotiated)
+                        }
+                    }
+                    else -> DelegatingClientWebSocketSession(context, session)
                 }
 
-                val response = HttpResponseContainer(info, DelegatingClientWebSocketSession(context, session))
+                val response = HttpResponseContainer(info, clientSession)
                 proceedWith(response)
             }
-        }
-    }
-
-    internal fun WebSocketSession.asDefault(): DefaultWebSocketSession {
-        if (this is DefaultWebSocketSession) return this
-
-        return DefaultWebSocketSession(this, pingInterval, timeoutMillis = pingInterval * 2).also {
-            it.maxFrameSize = this@WebSockets.maxFrameSize
         }
     }
 }

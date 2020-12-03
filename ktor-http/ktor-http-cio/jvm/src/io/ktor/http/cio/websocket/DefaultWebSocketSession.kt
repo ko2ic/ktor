@@ -36,4 +36,6 @@ public actual interface DefaultWebSocketSession : WebSocketSession {
      * (for example due to connection failure).
      */
     public actual val closeReason: Deferred<CloseReason?>
+
+    public actual fun start(negotiatedExtensions: List<WebSocketExtension<*>>)
 }

@@ -81,6 +81,8 @@ internal class JavaHttpWebSocket(
     override val outgoing: SendChannel<Frame>
         get() = _outgoing
 
+    override val negotiatedExtensions: Attributes = Attributes()
+
     init {
         launch {
             @OptIn(ExperimentalCoroutinesApi::class)

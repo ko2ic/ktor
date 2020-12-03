@@ -4,6 +4,7 @@
 
 package io.ktor.http.cio.websocket
 
+import io.ktor.util.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 
@@ -54,4 +55,9 @@ public actual interface WebSocketSession : CoroutineScope {
      * Specifies frame size limit. Connection will be closed if violated
      */
     public actual var maxFrameSize: Long
+
+    /**
+     * Negotiated WebSocket extensions.
+     */
+    public actual val extensions: List<WebSocketExtension<*>>
 }

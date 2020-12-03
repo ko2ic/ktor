@@ -34,9 +34,14 @@ public class WebSockets(
     public val pingIntervalMillis: Long,
     public val timeoutMillis: Long,
     public val maxFrameSize: Long,
-    public val masking: Boolean
+    public val masking: Boolean,
+    public val extensions: List<ExtensionInstaller>
 ) : CoroutineScope {
     private val parent: CompletableJob = Job()
+
+    public constructor(
+        pingIntervalMillis: Long, timeoutMillis: Long, maxFrameSize: Long, masking: Boolean
+    ) : this(pingIntervalMillis, timeoutMillis, maxFrameSize, masking, emptyList())
 
     override val coroutineContext: CoroutineContext
         get() = parent
@@ -55,6 +60,8 @@ public class WebSockets(
      * Websockets configuration options
      */
     public class WebSocketOptions {
+        private val extensionsConfig = ExtensionsConfig()
+
         /**
          * Duration between pings or `null` to disable pings
          */
@@ -96,6 +103,10 @@ public class WebSockets(
          * Whether masking need to be enabled (useful for security)
          */
         public var masking: Boolean = false
+
+        public fun extensions(block: ExtensionsConfig.() -> Unit) {
+            extensionsConfig.apply(block)
+        }
     }
 
     /**
@@ -103,6 +114,9 @@ public class WebSockets(
      */
     public companion object Feature : ApplicationFeature<Application, WebSocketOptions, WebSockets> {
         override val key: AttributeKey<WebSockets> = AttributeKey("WebSockets")
+
+        public val EXTENSIONS_KEY: AttributeKey<List<WebSocketExtension<*>>> =
+            AttributeKey("WebSocket extensions")
 
         override fun install(pipeline: Application, configure: WebSocketOptions.() -> Unit): WebSockets {
             val config = WebSocketOptions().also(configure)
@@ -114,9 +128,7 @@ public class WebSockets(
                 }
 
                 pipeline.sendPipeline.intercept(ApplicationSendPipeline.Transform) {
-                    if (it is WebSocketUpgrade) {
-                        it.call
-                    }
+                    if (it !is WebSocketUpgrade) return@intercept
                 }
 
                 return webSockets

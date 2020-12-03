@@ -25,4 +25,6 @@ public expect interface DefaultWebSocketSession : WebSocketSession {
      * (for example due to connection failure).
      */
     public val closeReason: Deferred<CloseReason?>
+
+    public fun start(negotiatedExtensions: List<WebSocketExtension<*>>)
 }

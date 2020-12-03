@@ -73,7 +73,7 @@ class WebSocketTest : ClientLoader() {
     }
 
     @Test
-    fun testEchoWSS() = clientTests(listOf("Apache", "Android", "Js", "iOS", "Curl", "native:CIO")) {
+    fun testEchoWSS() = clientTests(skipForWebsockets + "Js" + "native:CIO") {
         config {
             install(WebSockets)
         }
@@ -100,6 +100,39 @@ class WebSocketTest : ClientLoader() {
         test { client ->
             assertEquals(100, client[WebSockets].pingInterval)
             assertEquals(1024, client[WebSockets].maxFrameSize)
+        }
+    }
+
+    @Test
+    fun testWebSocketExtensions() = clientTests(skipForWebsockets + "OkHttp") {
+        val testLogger = TestLogger(
+            "Client negotiation",
+            "Process outgoing frame: Frame TEXT (fin=true, buffer len = 12)",
+            "Process incoming frame: Frame TEXT (fin=true, buffer len = 12)"
+        )
+
+        config {
+            WebSockets {
+                extensions {
+                    install(FrameLogger) {
+                        logger = testLogger
+                    }
+                }
+            }
+        }
+
+        test { client ->
+            client.ws("$TEST_WEBSOCKET_SERVER/websockets/echo") {
+                check(extensionOrNull(FrameLogger) != null)
+
+                send("Hello, world")
+                val frame = incoming.receive()
+                assertEquals("Hello, world", (frame as Frame.Text).readText())
+            }
+        }
+
+        after {
+            testLogger.verify()
         }
     }
 }

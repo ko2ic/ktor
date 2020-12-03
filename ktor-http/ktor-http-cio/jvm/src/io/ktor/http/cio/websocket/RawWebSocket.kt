@@ -33,6 +33,9 @@ public class RawWebSocket(
     override val incoming: ReceiveChannel<Frame> get() = filtered
     override val outgoing: SendChannel<Frame> get() = writer.outgoing
 
+    override val extensions: List<WebSocketExtension<*>>
+        get() = error("Extensions are not supported in raw WebSocket session")
+
     override var maxFrameSize: Long by Delegates.observable(maxFrameSize) { _, _, newValue ->
         reader.maxFrameSize = newValue
     }

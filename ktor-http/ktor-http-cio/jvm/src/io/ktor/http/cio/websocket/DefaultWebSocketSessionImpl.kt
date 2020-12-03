@@ -35,9 +35,14 @@ public class DefaultWebSocketSessionImpl(
     private val outgoingToBeProcessed = Channel<Frame>(8)
     private val closed: AtomicBoolean = atomic(false)
     private val context = Job(raw.coroutineContext[Job])
+    private val _extensions: MutableList<WebSocketExtension<*>> = mutableListOf()
+    private val started = atomic(false)
 
     override val incoming: ReceiveChannel<Frame> get() = filtered
+
     override val outgoing: SendChannel<Frame> get() = outgoingToBeProcessed
+
+    override val extensions: List<WebSocketExtension<*>> get() = _extensions
 
     override val coroutineContext: CoroutineContext =
         raw.coroutineContext + context + CoroutineName("ws-default")
@@ -55,17 +60,22 @@ public class DefaultWebSocketSessionImpl(
         }
     override val closeReason: Deferred<CloseReason?> = closeReasonRef
 
+    override fun start(negotiatedExtensions: List<WebSocketExtension<*>>) {
+        if (!started.compareAndSet(false, true)) {
+            error("WebSocket session is already started.")
+        }
+
+        _extensions.addAll(negotiatedExtensions)
+        runOrCancelPinger()
+        runIncomingProcessor(ponger(outgoing, pool))
+        runOutgoingProcessor()
+    }
+
     override var pingIntervalMillis: Long = pingInterval
         set(newValue) {
             field = newValue
             runOrCancelPinger()
         }
-
-    init {
-        runOrCancelPinger()
-        runIncomingProcessor(ponger(outgoing, pool))
-        runOutgoingProcessor()
-    }
 
     /**
      * Close session with GOING_AWAY reason
@@ -121,7 +131,7 @@ public class DefaultWebSocketSessionImpl(
                         } ?: frame
 
                         last = null
-                        filtered.send(frameToSend)
+                        filtered.send(processIncomingExtensions(frameToSend))
                     }
                 }
             }
@@ -162,12 +172,17 @@ public class DefaultWebSocketSessionImpl(
 
     private suspend fun outgoingProcessorLoop() {
         for (frame in outgoingToBeProcessed) {
-            if (frame is Frame.Close) {
-                sendCloseSequence(frame.readReason())
-                break
+            val processedFrame: Frame = when (frame) {
+                is Frame.Close -> {
+                    sendCloseSequence(frame.readReason())
+                    break
+                }
+                is Frame.Text,
+                is Frame.Binary -> processOutgoingExtensions(frame)
+                else -> frame
             }
 
-            raw.outgoing.send(frame)
+            raw.outgoing.send(processedFrame)
         }
     }
 
@@ -222,8 +237,14 @@ public class DefaultWebSocketSessionImpl(
         }
     }
 
+    private fun processIncomingExtensions(frame: Frame): Frame =
+        extensions.fold(frame) { current, extension -> extension.processIncomingFrame(current) }
+
+    private fun processOutgoingExtensions(frame: Frame): Frame =
+        extensions.fold(frame) { current, extension -> extension.processOutgoingFrame(current) }
+
     public companion object {
-        private val EmptyPong = Frame.Pong(ByteArray(0))
+        private val EmptyPong = Frame.Pong(ByteArray(0), NonDisposableHandle)
     }
 }
 

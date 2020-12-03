@@ -31,9 +31,24 @@ import kotlin.coroutines.*
 public class WebSocketUpgrade(
     public val call: ApplicationCall,
     public val protocol: String? = null,
+    private val installExtensions: Boolean = false,
     public val handle: suspend WebSocketSession.() -> Unit
 ) : OutgoingContent.ProtocolUpgrade() {
+
+    public constructor(
+        call: ApplicationCall,
+        protocol: String? = null,
+        handle: suspend WebSocketSession.() -> Unit
+    ) : this(call, protocol, installExtensions = false, handle)
+
     private val key = call.request.header(HttpHeaders.SecWebSocketKey)
+    private val feature = call.application.feature(WebSockets)
+
+    public val extensions: List<WebSocketExtension<*>> = if (installExtensions) {
+        feature.extensions.map { it() }
+    } else {
+        emptyList()
+    }
 
     override val headers: Headers
         get() = Headers.build {
@@ -45,7 +60,13 @@ public class WebSocketUpgrade(
             if (protocol != null) {
                 append(HttpHeaders.SecWebSocketProtocol, protocol)
             }
+
+            writeExtensions()
         }
+
+    init {
+        call.attributes.put(WebSockets.EXTENSIONS_KEY, extensions)
+    }
 
     override suspend fun upgrade(
         input: ByteReadChannel,
@@ -53,8 +74,6 @@ public class WebSocketUpgrade(
         engineContext: CoroutineContext,
         userContext: CoroutineContext
     ): Job {
-        val feature = call.application.feature(WebSockets)
-
         val webSocket = RawWebSocket(
             input, output,
             feature.maxFrameSize, feature.masking,
@@ -69,6 +88,21 @@ public class WebSocketUpgrade(
         }
 
         return webSocket.coroutineContext[Job]!!
+    }
+
+    private fun HeadersBuilder.writeExtensions() {
+        if (!installExtensions) return
+
+        val requestedExtensions = call.request.header(HttpHeaders.SecWebSocketExtensions)
+            ?.let { parseWebSocketExtensions(it) } ?: emptyList()
+
+        val extensions: List<WebSocketExtensionProtocol> = feature.extensions.flatMap {
+            it().serverNegotiation(requestedExtensions)
+        }
+
+        if (extensions.isNotEmpty()) {
+            append(HttpHeaders.SecWebSocketExtensions, extensions.joinToString(";"))
+        }
     }
 
     public companion object {
