@@ -53,7 +53,6 @@ public class RawWebSocket(
                 for (frame in reader.incoming) {
                     filtered.send(frame)
                 }
-
             } catch (cause: WebSocketReader.FrameTooBigException) {
                 outgoing.send(Frame.Close(CloseReason(CloseReason.Codes.TOO_BIG, cause.message)))
                 filtered.close(cause)

@@ -51,7 +51,7 @@ public class WebSockets internal constructor(
     private fun completeNegotiation(
         call: HttpClientCall
     ): List<WebSocketExtension<*>> {
-        val serverExtensions: List<WebSocketExtensionProtocol> = call.response
+        val serverExtensions: List<String> = call.response
             .headers[HttpHeaders.SecWebSocketExtensions]
             ?.let { parseWebSocketExtensions(it) } ?: emptyList()
 
@@ -60,7 +60,7 @@ public class WebSockets internal constructor(
         return clientExtensions.filter { it.clientNegotiation(serverExtensions) }
     }
 
-    private fun addNegotiatedProtocols(context: HttpRequestBuilder, protocols: List<WebSocketExtensionProtocol>) {
+    private fun addNegotiatedProtocols(context: HttpRequestBuilder, protocols: List<String>) {
         val headerValue = protocols.joinToString(";")
         context.header(HttpHeaders.SecWebSocketExtensions, headerValue)
     }

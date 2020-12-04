@@ -23,13 +23,13 @@ public interface WebSocketExtensionFactory<ConfigType: Any, ExtensionType: WebSo
 public interface WebSocketExtension<ConfigType : Any> {
     public val factory: WebSocketExtensionFactory<ConfigType, out WebSocketExtension<ConfigType>>
 
-    public val protocols: List<WebSocketExtensionProtocol>
+    public val protocols: List<String>
 
-    public fun clientNegotiation(negotiatedProtocols: List<WebSocketExtensionProtocol>): Boolean
+    public fun clientNegotiation(negotiatedProtocols: List<String>): Boolean
 
     public fun serverNegotiation(
-        requestedProtocols: List<WebSocketExtensionProtocol>
-    ): List<WebSocketExtensionProtocol>
+        requestedProtocols: List<String>
+    ): List<String>
 
     public fun processOutgoingFrame(frame: Frame): Frame
 

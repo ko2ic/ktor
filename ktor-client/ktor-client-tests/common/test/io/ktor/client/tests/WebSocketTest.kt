@@ -104,7 +104,7 @@ class WebSocketTest : ClientLoader() {
     }
 
     @Test
-    fun testWebSocketExtensions() = clientTests(skipForWebsockets + "OkHttp") {
+    fun testWebSocketExtensions() = clientTests(skipForWebsockets + "OkHttp" + "Java") {
         val testLogger = TestLogger(
             "Client negotiation",
             "Process outgoing frame: Frame TEXT (fin=true, buffer len = 12)",

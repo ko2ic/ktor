@@ -5,6 +5,6 @@
 package io.ktor.http.cio.websocket
 
 
-public fun parseWebSocketExtensions(header: String): List<WebSocketExtensionProtocol> {
+public fun parseWebSocketExtensions(header: String): List<String> {
     TODO()
 }

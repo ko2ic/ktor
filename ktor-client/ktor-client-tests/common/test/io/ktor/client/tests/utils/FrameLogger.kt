@@ -11,14 +11,14 @@ import io.ktor.util.*
 class FrameLogger(val logger: Logger) : WebSocketExtension<FrameLogger.Config> {
     override val factory: WebSocketExtensionFactory<Config, FrameLogger> = FrameLogger
 
-    override val protocols: List<WebSocketExtensionProtocol> = emptyList()
+    override val protocols: List<String> = emptyList()
 
-    override fun clientNegotiation(negotiatedProtocols: List<WebSocketExtensionProtocol>): Boolean {
+    override fun clientNegotiation(negotiatedProtocols: List<String>): Boolean {
         logger.log("Client negotiation")
         return true
     }
 
-    override fun serverNegotiation(requestedProtocols: List<WebSocketExtensionProtocol>): List<WebSocketExtensionProtocol> {
+    override fun serverNegotiation(requestedProtocols: List<String>): List<String> {
         logger.log("Server negotiation")
         return emptyList()
     }

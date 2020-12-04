@@ -96,7 +96,7 @@ public class WebSocketUpgrade(
         val requestedExtensions = call.request.header(HttpHeaders.SecWebSocketExtensions)
             ?.let { parseWebSocketExtensions(it) } ?: emptyList()
 
-        val extensions: List<WebSocketExtensionProtocol> = feature.extensions.flatMap {
+        val extensions: List<String> = feature.extensions.flatMap {
             it().serverNegotiation(requestedExtensions)
         }
 
