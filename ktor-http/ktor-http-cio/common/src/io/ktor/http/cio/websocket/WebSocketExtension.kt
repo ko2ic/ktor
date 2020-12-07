@@ -25,11 +25,11 @@ public interface WebSocketExtension<ConfigType : Any> {
 
     public val protocols: List<String>
 
-    public fun clientNegotiation(negotiatedProtocols: List<String>): Boolean
+    public fun clientNegotiation(negotiatedProtocols: List<WebSocketExtensionHeader>): Boolean
 
     public fun serverNegotiation(
-        requestedProtocols: List<String>
-    ): List<String>
+        requestedProtocols: List<WebSocketExtensionHeader>
+    ): List<WebSocketExtensionHeader>
 
     public fun processOutgoingFrame(frame: Frame): Frame
 
@@ -56,3 +56,4 @@ public class ExtensionsConfig {
         check(!hasConflict) { "Failed to install extension. Please check configured extensions for conflicts." }
     }
 }
+

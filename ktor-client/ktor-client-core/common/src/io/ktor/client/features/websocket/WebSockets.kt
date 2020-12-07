@@ -51,7 +51,7 @@ public class WebSockets internal constructor(
     private fun completeNegotiation(
         call: HttpClientCall
     ): List<WebSocketExtension<*>> {
-        val serverExtensions: List<String> = call.response
+        val serverExtensions: List<WebSocketExtensionHeader> = call.response
             .headers[HttpHeaders.SecWebSocketExtensions]
             ?.let { parseWebSocketExtensions(it) } ?: emptyList()
 
